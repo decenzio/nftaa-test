@@ -21,6 +21,9 @@
           type="number"
           class="w-full"
         />
+        <p v-if="itemIdError" class="text-error-500">
+          {{ itemIdError }}
+        </p>
       </UFormField>
 
       <UFormField label="Owner" name="owner">
@@ -75,18 +78,66 @@ const toast = useToast();
 
 const isLoading = ref(false);
 const lastResult = ref("");
+const itemIdError = ref<string | null>(null);
 
 const form = reactive({
-  collectionId: "",
-  itemId: "",
+  collectionId: "0",
+  itemId: "0",
   owner: "",
   metadata:
     '{"name": "Test NFT", "description": "A test NFT", "image": "https://example.com/image.png"}',
   useNftaa: false,
 });
 
+// Watch for changes in collection ID and item ID to check if NFT exists
+watch(
+  [() => form.collectionId, () => form.itemId],
+  async ([collectionId, itemId]) => {
+    if (!api.value || !collectionId || !itemId) {
+      itemIdError.value = null;
+      return;
+    }
+
+    if (Number(itemId) < 0) {
+      itemIdError.value = "Item ID must be >= 0";
+      return;
+    }
+
+    if (Number(collectionId) < 0) {
+      itemIdError.value = "Collection ID must be >= 0";
+      return;
+    }
+
+    try {
+      // Check if NFT already exists
+      const res = await api.value.query.nfts.item(collectionId, itemId);
+      if (res?.isSome) {
+        const data = await res.unwrap();
+        itemIdError.value = `NFT exists. Owner ${formatAddress(
+          data.owner.toString()
+        )}`;
+        return;
+      }
+      itemIdError.value = null;
+    } catch (error) {
+      // If there's an error querying, it might mean the collection doesn't exist
+      // We'll let the transaction handle this error
+      itemIdError.value = null;
+    }
+  },
+  {
+    immediate: true,
+  }
+);
+
 const canSubmit = computed(() => {
-  return api.value && selectedAccount.value && form.collectionId && form.itemId;
+  return (
+    api.value &&
+    selectedAccount.value &&
+    !Number.isNaN(Number(form.collectionId)) &&
+    !Number.isNaN(Number(form.itemId)) &&
+    !itemIdError.value
+  );
 });
 
 const handleSubmit = async () => {
@@ -126,58 +177,37 @@ const handleSubmit = async () => {
     // Create metadata transaction if metadata is provided
     const transactions = [mintTx];
 
-    if (form.metadata.trim()) {
-      try {
-        // Validate JSON
-        JSON.parse(form.metadata);
-
-        const metadataTx = api.value.tx.nfts.setMetadata(
-          form.collectionId,
-          form.itemId,
-          form.metadata
-        );
-        transactions.push(metadataTx);
-      } catch (error) {
-        toast.add({
-          title: "Invalid Metadata",
-          description: "Metadata must be valid JSON",
-          color: "error",
-        });
-        return;
-      }
+    if (!form.metadata.trim()) {
+      toast.add({
+        title: "Empty Metadata",
+        description: "Metadata must be valid JSON",
+        color: "error",
+      });
+      return;
     }
 
-    // Execute transactions
-    if (transactions.length > 1) {
-      // Try to use batch if available, otherwise execute sequentially
-      try {
-        const batchTx = api.value.tx.utility?.batchAll?.(transactions);
-        if (batchTx) {
-          await signAndSend(batchTx, (result) => {
-            lastResult.value = `NFT created in block: ${result.status.asInBlock}`;
-            toast.add({
-              title: "Success",
-              description: `NFT ${form.itemId} minted successfully using ${pallet} pallet!`,
-              color: "success",
-            });
-          });
-        } else {
-          // Execute sequentially if batch not available
-          for (const tx of transactions) {
-            await signAndSend(tx);
-          }
-          lastResult.value = `NFT transactions completed`;
-          toast.add({
-            title: "Success",
-            description: `NFT ${form.itemId} minted successfully using ${pallet} pallet!`,
-            color: "success",
-          });
-        }
-      } catch (error) {
-        throw error;
-      }
-    } else {
-      await signAndSend(transactions[0]!, (result) => {
+    try {
+      // Validate JSON
+      JSON.parse(form.metadata);
+
+      const metadataTx = api.value.tx.nfts.setMetadata(
+        form.collectionId,
+        form.itemId,
+        form.metadata
+      );
+      transactions.push(metadataTx);
+    } catch (error) {
+      toast.add({
+        title: "Invalid Metadata",
+        description: "Metadata must be valid JSON",
+        color: "error",
+      });
+      return;
+    }
+
+    try {
+      const batchTx = api.value.tx.palletUtility.batchAll(transactions);
+      await signAndSend(batchTx, (result) => {
         lastResult.value = `NFT created in block: ${result.status.asInBlock}`;
         toast.add({
           title: "Success",
@@ -185,6 +215,8 @@ const handleSubmit = async () => {
           color: "success",
         });
       });
+    } catch (error) {
+      throw error;
     }
 
     // Reset form
