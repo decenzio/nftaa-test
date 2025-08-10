@@ -2700,7 +2700,7 @@ declare module "@polkadot/api-base/types/submittable" {
        **/
       [key: string]: SubmittableExtrinsicFunction<ApiType>;
     };
-    palletUtility: {
+    utility: {
       /**
        * Send a call through an indexed pseudonym of the sender.
        *

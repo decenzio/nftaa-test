@@ -3,13 +3,14 @@
 
 // import type lookup before we augment - in some environments
 // this is required to allow for ambient/previous definitions
-import '@polkadot/api-base/types/errors';
+import "@polkadot/api-base/types/errors";
 
-import type { ApiTypes, AugmentedError } from '@polkadot/api-base/types';
+import type { ApiTypes, AugmentedError } from "@polkadot/api-base/types";
 
-export type __AugmentedError<ApiType extends ApiTypes> = AugmentedError<ApiType>;
+export type __AugmentedError<ApiType extends ApiTypes> =
+  AugmentedError<ApiType>;
 
-declare module '@polkadot/api-base/types/errors' {
+declare module "@polkadot/api-base/types/errors" {
   interface AugmentedErrors<ApiType extends ApiTypes> {
     balances: {
       /**
@@ -167,7 +168,7 @@ declare module '@polkadot/api-base/types/errors' {
       Queued: AugmentedError<ApiType>;
       /**
        * The queue is paused and no message can be executed from it.
-       * 
+       *
        * This can change at any time and may resolve in the future by re-trying.
        **/
       QueuePaused: AugmentedError<ApiType>;
@@ -177,7 +178,7 @@ declare module '@polkadot/api-base/types/errors' {
       RecursiveDisallowed: AugmentedError<ApiType>;
       /**
        * This message is temporarily unprocessable.
-       * 
+       *
        * Such errors are expected, but not guaranteed, to resolve themselves eventually through
        * retrying.
        **/
@@ -395,7 +396,7 @@ declare module '@polkadot/api-base/types/errors' {
        **/
       [key: string]: AugmentedError<ApiType>;
     };
-    palletUtility: {
+    utility: {
       /**
        * Too many calls batched.
        **/
@@ -596,7 +597,7 @@ declare module '@polkadot/api-base/types/errors' {
       CallFiltered: AugmentedError<ApiType>;
       /**
        * Failed to extract the runtime version from the new runtime.
-       * 
+       *
        * Either calling `Core_version` or decoding `RuntimeVersion` failed.
        **/
       FailedToExtractRuntimeVersion: AugmentedError<ApiType>;

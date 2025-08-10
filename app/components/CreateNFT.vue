@@ -12,6 +12,9 @@
           type="number"
           class="w-full"
         />
+        <p v-if="collectionIdError" class="text-error-500">
+          {{ collectionIdError }}
+        </p>
       </UFormField>
 
       <UFormField label="Item ID" name="itemId">
@@ -79,6 +82,7 @@ const toast = useToast();
 const isLoading = ref(false);
 const lastResult = ref("");
 const itemIdError = ref<string | null>(null);
+const collectionIdError = ref<string | null>(null);
 
 const form = reactive({
   collectionId: "0",
@@ -91,9 +95,9 @@ const form = reactive({
 
 // Watch for changes in collection ID and item ID to check if NFT exists
 watch(
-  [() => form.collectionId, () => form.itemId],
-  async ([collectionId, itemId]) => {
-    if (!api.value || !collectionId || !itemId) {
+  [api, () => form.collectionId, () => form.itemId],
+  async ([api, collectionId, itemId]) => {
+    if (!api) {
       itemIdError.value = null;
       return;
     }
@@ -109,8 +113,20 @@ watch(
     }
 
     try {
+      const res = await api.query.nfts.collection(collectionId);
+      if (!res.isSome) {
+        collectionIdError.value = `Collection ${collectionId} does not exist`;
+        return;
+      }
+    } catch (error) {
+      collectionIdError.value = `Error checking collection existence`;
+      console.error("Error checking collection existence:", error);
+      return;
+    }
+
+    try {
       // Check if NFT already exists
-      const res = await api.value.query.nfts.item(collectionId, itemId);
+      const res = await api.query.nfts.item(collectionId, itemId);
       if (res?.isSome) {
         const data = await res.unwrap();
         itemIdError.value = `NFT exists. Owner ${formatAddress(
@@ -118,12 +134,15 @@ watch(
         )}`;
         return;
       }
-      itemIdError.value = null;
     } catch (error) {
       // If there's an error querying, it might mean the collection doesn't exist
       // We'll let the transaction handle this error
-      itemIdError.value = null;
+      itemIdError.value = `Error checking NFT existence`;
+      console.error("Error checking NFT existence:", error);
+      return;
     }
+    itemIdError.value = null;
+    collectionIdError.value = null;
   },
   {
     immediate: true,
@@ -206,7 +225,7 @@ const handleSubmit = async () => {
     }
 
     try {
-      const batchTx = api.value.tx.palletUtility.batchAll(transactions);
+      const batchTx = api.value.tx.utility.batchAll(transactions);
       await signAndSend(batchTx, (result) => {
         lastResult.value = `NFT created in block: ${result.status.asInBlock}`;
         toast.add({

@@ -117,13 +117,17 @@ const form = reactive({
 });
 const collectionIdError = ref<string | null>(null);
 watch(
-  () => form.collectionId,
-  async (id) => {
+  [api, () => form.collectionId],
+  async ([api, id]) => {
+    if (!api) {
+      collectionIdError.value = null;
+      return;
+    }
     if (Number(id) < 0) {
       collectionIdError.value = "Collection ID must be > 0";
       return;
     }
-    const res = await api.value?.query.nfts.collection(id);
+    const res = await api.query.nfts.collection(id);
     if (res?.isSome) {
       const data = await res.unwrap();
       collectionIdError.value = `Collection exists. Owner ${formatAddress(

@@ -206,7 +206,29 @@ export const usePolkadot = () => {
             });
           }
         } else if (result.status.isInBlock) {
-          console.log(`Transaction in block: ${result.status.asInBlock}`);
+          // Check for batch errors or extrinsic failures
+          const hasErrors = result.events.some(({ event }) => {
+            if (api.value?.events.utility.BatchInterrupted.is(event)) {
+              console.error("Batch interrupted:", event.data.toString());
+              return true;
+            }
+
+            // Check for system.ExtrinsicFailed (general extrinsic failure)
+            if (api.value?.events.system.ExtrinsicFailed.is(event)) {
+              console.error("Extrinsic failed:", event.data.toString());
+              return true;
+            }
+
+            return false;
+          });
+
+          if (hasErrors) {
+            // Handle batch or extrinsic errors
+            if (statusToastId) {
+              toast.remove(statusToastId);
+            }
+            throw new Error("Transaction failed with errors in events");
+          }
 
           // Update toast for in-block status
           if (statusToastId) {
@@ -226,6 +248,22 @@ export const usePolkadot = () => {
         } else if (result.status.isFinalized) {
           console.log(`Transaction finalized: ${result.status.asFinalized}`);
 
+          // Double-check for errors in finalized block as well
+          const hasErrors = result.events.some((event) => {
+            const { section, method } = event.event;
+            return (
+              (section === "utility" && method === "BatchInterrupted") ||
+              (section === "system" && method === "ExtrinsicFailed")
+            );
+          });
+
+          if (hasErrors) {
+            if (statusToastId) {
+              toast.remove(statusToastId);
+            }
+            throw new Error("Transaction failed with errors in events");
+          }
+
           // Remove status toast and let success toast be shown by component
           if (statusToastId) {
             toast.update(statusToastId, {
@@ -239,8 +277,6 @@ export const usePolkadot = () => {
           }
           return result;
         } else if (result.isError) {
-          console.error("Transaction error:", result);
-
           // Remove status toast
           if (statusToastId) {
             toast.remove(statusToastId);
