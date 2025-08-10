@@ -129,9 +129,17 @@ watch(
       const res = await api.query.nfts.item(collectionId, itemId);
       if (res?.isSome) {
         const data = await res.unwrap();
+        const meta = await api.query.nfts.itemMetadataOf(collectionId, itemId);
+        const nftaa_address = await api.query.nfts.attribute(
+          collectionId,
+          itemId,
+          { CollectionOwner: null },
+          0
+        );
+        console.log("NFTAA Address:", nftaa_address.toHuman());
         itemIdError.value = `NFT exists. Owner ${formatAddress(
           data.owner.toString()
-        )}`;
+        )}. Metadata: ${meta ? JSON.stringify(meta.toJSON()) : "None"}`;
         return;
       }
     } catch (error) {
@@ -168,16 +176,6 @@ const handleSubmit = async () => {
     });
     return;
   }
-
-  if (!form.collectionId || !form.itemId) {
-    toast.add({
-      title: "Error",
-      description: "Collection ID and Item ID are required",
-      color: "error",
-    });
-    return;
-  }
-
   try {
     isLoading.value = true;
     lastResult.value = "";
@@ -207,12 +205,13 @@ const handleSubmit = async () => {
 
     try {
       // Validate JSON
-      JSON.parse(form.metadata);
+      const res = JSON.parse(form.metadata);
+      const meta = await pinJson(res);
 
       const metadataTx = api.value.tx.nfts.setMetadata(
         form.collectionId,
         form.itemId,
-        form.metadata
+        meta
       );
       transactions.push(metadataTx);
     } catch (error) {
